@@ -16,6 +16,10 @@ func TestParse(t *testing.T) {
 		{"10/18 13:29:01.123  [2. Trade] [Brannoc]: LF enchanter PST", true, Line{"Trade", "Brannoc", "LF enchanter PST"}},
 		{"10/18 13:29:01  [2. Trade] Brannoc: no milliseconds", true, Line{"Trade", "Brannoc", "no milliseconds"}},
 		{"10/18 13:29:01.123  [2. Trade] Kaelïth: accents are fine", true, Line{"Trade", "Kaelïth", "accents are fine"}},
+		// Forever allows spaces in names
+		{"10/18 13:29:01.123  [2. Trade - City] [Lan Rat-Forever]: WTS [Thorium Ore]", true, Line{"Trade - City", "Lan Rat", "WTS [Thorium Ore]"}},
+		{"10/18 13:29:01.123  [2. Trade] Aria Dawnfall: LF healer", true, Line{"Trade", "Aria Dawnfall", "LF healer"}},
+		{"10/18 13:29:01.123  [2. Trade] Two  Spaces: no", false, Line{}},
 		// link codes: item links keep their ID, player and channel links become their names
 		{"10/18 13:29:01.123  |Hchannel:channel:2|h[2. Trade - City]|h |Hplayer:Thoria-Forever:12:CHANNEL:2|h[Thoria]|h: WTS |cffffffff|Hitem:10620:0:0:0:0:0:0:0|h[Thorium Ore]|h|r x20",
 			true, Line{"Trade - City", "Thoria", "WTS [item:10620] x20"}},

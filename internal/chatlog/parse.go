@@ -94,14 +94,14 @@ func Parse(raw string) (Line, bool) {
 	return Line{Channel: ch, Name: name, Text: text}, true
 }
 
-// a character name: 2 to 12 letters (accents allowed), nothing else
+// a character name: letters (accents allowed), and on WoW: Forever single spaces between words ("Lan Rat"), 2 to 24 long
 func validName(n string) bool {
 	c := utf8.RuneCountInString(n)
-	if c < 2 || c > 12 {
+	if c < 2 || c > 24 || strings.HasPrefix(n, " ") || strings.HasSuffix(n, " ") || strings.Contains(n, "  ") {
 		return false
 	}
 	for _, r := range n {
-		if !unicode.IsLetter(r) {
+		if !unicode.IsLetter(r) && r != ' ' {
 			return false
 		}
 	}
