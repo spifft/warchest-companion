@@ -5,21 +5,58 @@ package chatlog
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 )
 
 // Line is one Trade chat message.
 type Line struct {
-	Channel string `json:"ch"` // "Trade" or "Trade - City"
-	Name    string `json:"n"`  // the character who said it, without a realm
-	Text    string `json:"t"`  // the message; item links become [item:ID] when the log has their codes
+	Channel string `json:"ch"`           // "Trade" or "Trade - City"
+	Name    string `json:"n"`            // the character who said it, without a realm
+	Text    string `json:"t"`            // the message; item links become [item:ID] when the log has their codes
+	At      int64  `json:"at,omitempty"` // when it was said (Unix ms, from the log's own clock); the game writes the log in bursts
+}
+
+// now is the clock the log's times are read against (tests set it)
+var now = time.Now
+
+// stampTime turns "10/18 17:55:15.768" (this computer's local time, no year) into Unix ms.
+func stampTime(m []string) int64 {
+	mon, _ := strconv.Atoi(m[1])
+	day, _ := strconv.Atoi(m[2])
+	h, _ := strconv.Atoi(m[4])
+	mi, _ := strconv.Atoi(m[5])
+	sec, _ := strconv.Atoi(m[6])
+	ms := 0
+	if m[7] != "" {
+		ms, _ = strconv.Atoi((m[7] + "00")[:3])
+	}
+	if mon < 1 || mon > 12 || day < 1 || day > 31 || h > 23 || mi > 59 || sec > 60 {
+		return 0
+	}
+	t0 := now()
+	year := t0.Year()
+	if m[3] != "" {
+		if y, err := strconv.Atoi(m[3]); err == nil {
+			if y < 100 {
+				y += 2000
+			}
+			year = y
+		}
+	}
+	t := time.Date(year, time.Month(mon), day, h, mi, sec, ms*int(time.Millisecond), time.Local)
+	if m[3] == "" && t.After(t0.Add(24*time.Hour)) { // a December line read in January
+		t = t.AddDate(-1, 0, 0)
+	}
+	return t.UnixMilli()
 }
 
 var (
 	// "10/18 13:29:01.123  " (and older clients without milliseconds)
-	stamp = regexp.MustCompile(`^\d{1,2}/\d{1,2}(?:/\d{2,4})? +\d{1,2}:\d{2}:\d{2}(?:\.\d{1,3})? +`)
+	stamp = regexp.MustCompile(`^(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))? +(\d{1,2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))? +`)
 	// "[2. Trade - City] " or "[2. Trade] "
 	channel = regexp.MustCompile(`^\[(\d{1,2})\. ([^\]]{2,40})\] `)
 	// a hyperlink: |Hitem:2772:0:0:0|h[Thorium Ore]|h  (|Hplayer:Name-Realm|h[Name]|h, |Hchannel:...|h[2. Trade]|h)
@@ -52,11 +89,11 @@ func Parse(raw string) (Line, bool) {
 	if !utf8.ValidString(raw) {
 		return Line{}, false
 	}
-	loc := stamp.FindStringIndex(raw)
-	if loc == nil {
+	sm := stamp.FindStringSubmatch(raw)
+	if sm == nil {
 		return Line{}, false
 	}
-	rest := clean(raw[loc[1]:])
+	rest := clean(raw[len(sm[0]):])
 	m := channel.FindStringSubmatchIndex(rest)
 	if m == nil {
 		return Line{}, false
@@ -91,7 +128,7 @@ func Parse(raw string) (Line, bool) {
 	if text == "" || len(text) > 600 {
 		return Line{}, false
 	}
-	return Line{Channel: ch, Name: name, Text: text}, true
+	return Line{Channel: ch, Name: name, Text: text, At: stampTime(sm)}, true
 }
 
 // a character name: letters (accents allowed), and on WoW: Forever single spaces between words ("Lan Rat"), 2 to 24 long
